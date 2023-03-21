@@ -1,0 +1,93 @@
+public class MainActivity extends AppCompatActivity implements CameraSource.PictureCallback {
+
+    private CameraSource cameraSource;
+    private CameraSourcePreview preview;
+    private GraphicOverlay graphicOverlay;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        preview = findViewById(R.id.camera_preview);
+        graphicOverlay = findViewById(R.id.graphic_overlay);
+
+        // Inicjowanie kamery
+        createCameraSource();
+
+        // Rozpoczęcie podglądu obrazu z kamery
+        startCameraPreview();
+    }
+
+    private void createCameraSource() {
+        // Tworzenie detektora tekstu
+        TextRecognizer textRecognizer = new TextRecognizer.Builder(getApplicationContext()).build();
+        if (!textRecognizer.isOperational()) {
+            Toast.makeText(this, "Detektor tekstu nie jest gotowy", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Tworzenie źródła kamery
+        cameraSource = new CameraSource.Builder(getApplicationContext(), textRecognizer)
+                .setFacing(CameraSource.CAMERA_FACING_BACK)
+                .setRequestedPreviewSize(1280, 720)
+                .setAutoFocusEnabled(true)
+                .setRequestedFps(30.0f)
+                .build();
+
+        // Dodawanie detektora tekstu do widoku
+        textRecognizer.setProcessor(new Detector.Processor<TextBlock>() {
+            @Override
+            public void release() {
+            }
+
+            @Override
+            public void receiveDetections(Detector.Detections<TextBlock> detections) {
+                graphicOverlay.clear();
+                SparseArray<TextBlock> items = detections.getDetectedItems();
+                for (int i = 0; i < items.size(); i++) {
+                    TextBlock item = items.valueAt(i);
+                    if (item != null && item.getValue() != null) {
+                        GraphicOverlay.Graphic textGraphic = new TextGraphic(graphicOverlay, item);
+                        graphicOverlay.add(textGraphic);
+                    }
+                }
+            }
+        });
+    }
+
+    private void startCameraPreview() {
+        if (cameraSource != null) {
+            try {
+                preview.start(cameraSource, graphicOverlay);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        startCameraPreview();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        preview.stop();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (cameraSource != null) {
+            cameraSource.release();
+        }
+    }
+
+    @Override
+    public void onPictureTaken(byte[] data) {
+        // Obsługa zrobionego zdjęcia
+    }
+}
